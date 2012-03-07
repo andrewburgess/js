@@ -6,7 +6,7 @@
 (function ($) {
     "use strict";
 
-    var hasTouch = 'ontouchstart' in window && !isTouchPad;
+    var hasTouch = 'ontouchstart' in window;
 
     //CONSTANTS
     var MOVE_EVENT = hasTouch ? 'touchmove' : 'mousemove',
@@ -26,8 +26,8 @@
                         threshold: 0,
                         imageWidth: 290,
                         autochange: true,
-                        rotateDuration: 4000,
-                        rotateExtraTime: 2000
+                        rotateDuration: 5000,
+                        rotateExtraTime: 1000
                     }, options);
 
                     self.css('left', settings.index * settings.imageWidth * -1);
@@ -81,11 +81,17 @@
                 return;
 
             var currentLeft = parseInt(self.css('left'), 10);
-            var diff = ev.pageX - data.offset.x;
+            var pageX = 0;
+            if (hasTouch)
+                pageX = ev.originalEvent.touches[0].pageX;
+            else
+                pageX = ev.pageX;
+            var diff = pageX - data.offset.x;
+
             self.css('left', currentLeft + diff);
 
             data.change.x += diff;
-            data.offset.x = ev.pageX;
+            data.offset.x = pageX;
 
             data.lastChange = Date.now();
 
@@ -96,8 +102,14 @@
             var self = $(ev.currentTarget);
             var data = self.data('carousel');
 
+            var pageX = 0;
+            if (hasTouch)
+                pageX = ev.originalEvent.touches[0].pageX;
+            else
+                pageX = ev.pageX;
+
             data.moving = true;
-            data.offset.x = ev.pageX;
+            data.offset.x = pageX;
 
             self.data('carousel', data);
         },

@@ -94,8 +94,6 @@
             data.offset.x = pageX;
 
             data.lastChange = Date.now();
-
-            self.data('carousel', data);
         },
         _start: function (ev) {
             ev.preventDefault();
@@ -110,8 +108,6 @@
 
             data.moving = true;
             data.offset.x = pageX;
-
-            self.data('carousel', data);
         },
         _stop: function (ev) {
             ev.preventDefault();
@@ -138,8 +134,6 @@
 
             data.change.x = 0;
             data.change.y = 0;
-
-            self.data('carousel', data);
         },
         _resetTimer: function () {
             var self = $(this);
@@ -151,8 +145,6 @@
                     self.mobileCarousel('_autorotate');
                 }).dequeue('carousel');
             }
-
-            self.data('carousel', data);
         },
         change: function (index, extraTime) {
             if (extraTime === undefined)
@@ -160,12 +152,10 @@
 
             var self = $(this);
             var data = self.data('carousel');
-            self.animate({ left: (-1 * data.options.imageWidth * index) }, data.options.snapDuration + extraTime);
+            self.animate({ left: (-1 * data.options.imageWidth * index) }, data.options.snapDuration + extraTime, function () {
+                self.mobileCarousel('_resetTimer');
+            });
             data.options.index = index;
-
-            self.mobileCarousel('_resetTimer');
-
-            self.data('carousel', data);
         }
     };
 

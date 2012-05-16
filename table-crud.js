@@ -19,153 +19,165 @@
     Also expects the add/edit/delete urls to return HTML for a modal dialog with a save button
     
 */
-(function ($) {
+// Generic CRUD table handler plugin
+; (function ($, window, undefined) {
     "use strict";
 
-    var methods = {
-        init: function (options) {
-            return this.each(function () {
-                var self = $(this),
-                    data = self.data('tableCRUD');
+    var pluginName = 'tableCRUD',
+        document = window.document,
+        defaults = {
+            tableElement: '.crud-table',
+            modalElement: '.crud-dialog',
+            modalOptions: { show: false, backdrop: 'static' },
+            saveButton: '#save',
+            addButton: '.add',
+            editElements: '.edit',
+            deleteElements: '.delete',
+            addSuccess: undefined,
+            editSuccess: undefined,
+            deleteSuccess: undefined,
+            setupModalCallback: undefined
+        };
 
-                if (!data) {
-                    var settings = $.extend({
-                        tableElement: $('.crud-table'),
-                        modalElement: $('.crud-dialog'),
-                        modalOptions: {show: false, backdrop: 'static'},
-                        saveButton: '#save',
-                        editElements: '.edit',
-                        deleteElements: '.delete',
-                        addButton: '.add',
-                        addSuccess: '_addSuccess',
-                        editSuccess: '_editSuccess',
-                        deleteSuccess: '_deleteSuccess'
-                    }, options);
+    function TableCRUD(element, options) {
+        this.element = element;
 
-                    data = {options: settings}
-                    self.data('tableCRUD', data);
-                }
+        this.options = $.extend({}, defaults, options);
+        this._defaults = defaults;
+        this._name = pluginName;
+        
+        this.init();
+    }
 
-                data.options.modalElement.modal(data.options.modalOptions);
-                data.options.modalElement.on('hide', function() {
-                    $(document).off('submit');
-                });
+    TableCRUD.prototype.init = function () {
+        var self = this,
+            options = this.options;
 
-                $(data.options.addButton).click(function (e) {
-                    e.preventDefault();
-                    var url = $(this).attr('href');
-                    data.options.modalElement.load(url, function () {
-                        $(this).modal('show');
-                        self.tableCRUD('_setupModal', data.options.addSuccess);
-                    });
-                });
-
-                self.tableCRUD('_setupCallbacks');
+        $(options.modalElement).modal(options.modalOptions);
+        $(options.modalElement).on('hide', function () {
+            $(options.modalElement).off('submit');
+            $(options.modalElement).off('keypress');
+        });
+        $(options.modalElement).on('shown', function () {
+            $(options.modalElement).keypress(function (event) {
+                if (event.which == 13 && event.target.nodeName != 'TEXTAREA')
+                    $(options.modalElement).find(options.saveButton).click();
             });
-        },
-        _addSuccess: function(ret) {
-            var self = $(this),
-                data = self.data('tableCRUD');
+        });
 
-            var newEl = $(ret.Content);
-            data.options.tableElement.append(newEl);
-            self.tableCRUD('_setupCallbacks');
-        },
-        _editSuccess: function (ret, extra) {
-            var self = $(this),
-                data = self.data('tableCRUD');
-            
-            var updated = $(ret.Content);
-            extra.element.replaceWith(updated);
-            self.tableCRUD('_setupCallbacks');
-        },
-        _deleteSuccess: function (ret, extra) {
-            var self = $(this),
-                data = self.data('tableCRUD');
+        $(options.addButton).click(function (e) {
+            e.preventDefault();
 
-            extra.element.remove();
-        },
-        _postData: function (url, values, onSuccess, successData) {
-            var self = $(this),
-                data = self.data('tableCRUD');
-
-            $.post(url, values, function (ret) {
-                data.options.modalElement.find(data.options.saveButton).button('reset');
-                if (ret.Success) {
-                    data.options.modalElement.modal('hide');
-                    data.options.modalElement.html('');
-                    if (typeof onSuccess === 'string') {
-                        self.tableCRUD(onSuccess, ret, successData);
-                    } else {
-                        onSuccess(ret, successData);
-                    }
-                } else {
-                    data.options.modalElement.html(ret.Content);
-                    Watkins.setBootstrapValidationErrors();
-                    self.tableCRUD('_setupModal', onSuccess, successData);
-                }
+            var url = $(this).attr('href');
+            $(options.modalElement).load(url, function () {
+                $(this).modal('show');
+                self._setupModal(options.addSuccess === undefined ? function (data, extra) { self._addSuccess(data, extra) } : options.addSuccess);
             });
-        },
-        _setupCallbacks: function() {
-            var self = $(this),
-                data = self.data('tableCRUD'),
-                options = data.options;
+        });
 
-            options.tableElement.find(options.editElements).off('click').on('click', function(e) {
-                e.preventDefault();
-
-                var url = $(this).attr('href');
-                var tr = $($(this).closest('tr'));
-                options.modalElement.load(url, function () {
-                    $(this).modal('show');
-                    self.tableCRUD('_setupModal', options.editSuccess, { element: tr });
-                });
-            });
-
-            options.tableElement.find(options.deleteElements).off('click').on('click', function(e) {
-                e.preventDefault();
-
-                var url = $(this).attr('href');
-                var tr = $($(this).closest('tr'));
-                options.modalElement.load(url, function () {
-                    $(this).modal('show');
-                    self.tableCRUD('_setupModal', options.deleteSuccess, { element: tr });
-                });
-            });
-        },
-        _setupModal: function (onSuccess, successData) {
-            var self = $(this),
-                data = self.data('tableCRUD');
-
-            var form = data.options.modalElement.find('form');
-            var saveButton = data.options.modalElement.find(data.options.saveButton);
-
-            $.validator.unobtrusive.parse($(form));
-
-            saveButton.click(function (e) {
-                e.preventDefault();
-
-                if (form.valid())
-                    form.submit();
-            });
-
-            $(document).one('submit', form, function (e) {
-                e.preventDefault();
-                saveButton.button('loading');
-
-                var values = form.serialize();
-                self.tableCRUD('_postData', form.attr('action'), values, onSuccess, successData);
-            });
-        }
+        self._setupCallbacks();
     };
 
-    $.fn.tableCRUD = function (method) {
-        if (methods[method]) {
-            return methods[method].apply(this, Array.prototype.slice.call(arguments, 1));
-        } else if (typeof method === 'object' || !method) {
-            return methods.init.apply(this, arguments);
-        } else {
-            $.error('Method ' + method + ' does not exist on jQuery.tableCRUD');
-        }
+    TableCRUD.prototype._addSuccess = function (data, extra) {
+        var newEl = $(data.Content);
+        $(this.options.tableElement).append(newEl);
     };
-} (jQuery));
+
+    TableCRUD.prototype._editSuccess = function (data, extra) {
+        var updated = $(data.Content);
+        extra.element.replaceWith(updated);
+    };
+
+    TableCRUD.prototype._deleteSuccess = function (data, extra) {
+        extra.element.remove();
+    };
+
+    TableCRUD.prototype._postData = function (url, values, onSuccess, successData) {
+        var self = this,
+            options = this.options;
+
+        $.post(url, values, function (data) {
+            $(options.modalElement).find(options.saveButton).button('reset');
+            if (data.Success) {
+                $(options.modalElement).modal('hide').html('');
+                onSuccess(data, successData);
+                self._setupCallbacks();
+            } else {
+                $(options.modalElement).html(data.Content);
+                Watkins.setBootstrapValidationErrors();
+                self._setupModal(onSuccess, successData);
+            }
+        });
+    };
+
+    TableCRUD.prototype._setupCallbacks = function () {
+        var self = this,
+            options = this.options;
+
+        $(options.tableElement).find(options.editElements).off('click').on('click', function (e) {
+            e.preventDefault();
+
+            var btn = $(this);
+            btn.button('loading');
+
+            var url = $(this).attr('href');
+            var tr = $($(this).closest('tr'));
+            $(options.modalElement).load(url, function () {
+                btn.button('reset');
+                $(this).modal('show');
+                self._setupModal(options.editSuccess === undefined ? self._editSuccess : options.editSuccess, { element: tr });
+            });
+        });
+
+        $(options.tableElement).find(options.deleteElements).off('click').on('click', function (e) {
+            e.preventDefault();
+
+            var url = $(this).attr('href');
+            var tr = $($(this).closest('tr'));
+            $(options.modalElement).load(url, function () {
+                $(this).modal('show');
+                self._setupModal(options.deleteSuccess === undefined ? self._deleteSuccess : options.deleteSuccess, { element: tr });
+            });
+        });
+    };
+
+    TableCRUD.prototype._setupModal = function (onSuccess, successData) {
+        var self = this,
+            options = this.options;
+
+        var form = $(options.modalElement).find('form');
+        var saveButton = $(options.modalElement).find(options.saveButton);
+
+        saveButton.click(function (e) {
+            e.preventDefault();
+
+            if (form.valid())
+                form.submit();
+            else
+                Watkins.setBootstrapValidationErrors();
+        });
+
+        $(document).one('submit', form, function (e) {
+            e.preventDefault();
+
+            saveButton.button('loading');
+
+            var values = form.serialize();
+            self._postData(form.attr('action'), values, onSuccess, successData);
+        });
+
+        if (options.setupModalCallback !== undefined) {
+            options.setupModalCallback();
+        }
+
+        $.validator.unobtrusive.parse($(form));
+    };
+
+    $.fn[pluginName] = function (options) {
+        return this.each(function () {
+            if (!$.data(this, 'plugin_' + pluginName)) {
+                $.data(this, 'plugin_' + pluginName, new TableCRUD(this, options));
+            }
+        });
+    }
+} (jQuery, window));
